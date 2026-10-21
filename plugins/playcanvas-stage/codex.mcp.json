@@ -1,0 +1,10 @@
+{
+    "mcpServers": {
+        "stage": {
+            "command": "node",
+            "args": ["./server/mcp.ts"],
+            "cwd": ".",
+            "tool_timeout_sec": 180
+        }
+    }
+}

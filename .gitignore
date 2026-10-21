@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+.mcp.json
+.codex/
+.claude/settings.local.json
+.claude/worktrees/
+docs/
+.npmrc

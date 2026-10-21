@@ -1,0 +1,1424 @@
+<title>Plinth Study</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+    :root {
+        color-scheme: light;
+        --page-bg: #f1f2ef;
+        --scene-bg: #e7e9e4;
+        --ink: #1d2320;
+        --muted: #59625d;
+        --panel: #f6f7f4e6;
+        --line: #c8cec8;
+        --accent: #2c6b5a;
+        --on-accent: #f4f7f5;
+        --sans: 'IBM Plex Sans', system-ui, sans-serif;
+        --mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+        /* the editing toolbar is viewer chrome: it takes the viewer's comment orange in every theme, like the comment outlines */
+        --tool: #ff6600;
+        --on-tool: #ffffff;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+            color-scheme: dark;
+            --page-bg: #101312;
+            --scene-bg: #151918;
+            --ink: #e3e8e4;
+            --muted: #98a29c;
+            --panel: #1d2220e6;
+            --line: #333b37;
+            --accent: #79c2a9;
+            --on-accent: #0f1412;
+        }
+    }
+    :root[data-theme="dark"] {
+        color-scheme: dark;
+        --page-bg: #101312;
+        --scene-bg: #151918;
+        --ink: #e3e8e4;
+        --muted: #98a29c;
+        --panel: #1d2220e6;
+        --line: #333b37;
+        --accent: #79c2a9;
+        --on-accent: #0f1412;
+    }
+    body { margin: 0; padding-block: 20px; padding-inline: 16px; background: var(--page-bg); color: var(--ink); font: 15px/1.45 var(--sans); }
+    h1 { margin: 0 0 14px; font-size: 19px; font-weight: 600; text-wrap: balance; }
+    .scenes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+    .scene { display: flex; flex-direction: column; gap: 8px; }
+    .view { position: relative; aspect-ratio: 16 / 10; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--scene-bg); }
+    .scenes:has(.scene + .scene) .view { aspect-ratio: 4 / 3; }
+    .scene-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .hud { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; pointer-events: none; }
+    .hud > * { pointer-events: auto; }
+    h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.01em; }
+    .tools { display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; }
+    .tools[hidden] { display: none; }
+    .tools button { position: relative; display: grid; place-items: center; color: var(--ink); background: transparent; border: 0; border-radius: 5px; padding: 7px; cursor: pointer; }
+    .tools button:disabled { cursor: default; }
+    .tools button:disabled svg { opacity: 0.4; }
+    .tools svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    [data-action="space"][aria-pressed="true"] .world, [data-action="space"]:not([aria-pressed="true"]) .local { display: none; }
+
+    /* tooltips read the button's aria-label; the tool buttons anchor left so the long move-only note stays inside the scene */
+    .tools button::after { content: attr(aria-label); position: absolute; top: calc(100% + 6px); left: 50%; translate: -50% 0; z-index: 1; width: max-content; max-width: 220px; padding: 4px 7px; border-radius: 4px; background: var(--ink); color: var(--page-bg); font: 12px/1.3 var(--sans); text-align: start; pointer-events: none; opacity: 0; transition: opacity 0.12s; }
+    .tools [data-tool]::after { left: 0; translate: none; }
+    .tools button:is(:hover, :focus-visible)::after { opacity: 1; transition-delay: 0.35s; }
+    .tools button:hover { background: color-mix(in srgb, var(--tool) 18%, transparent); }
+    .tools button[aria-pressed="true"] { background: var(--tool); color: var(--on-tool); }
+    .tools button:focus-visible { outline: 2px solid var(--tool); outline-offset: 1px; }
+    .corner { position: absolute; top: 12px; right: 12px; }
+
+    /* the corner button's tooltip opens to its left, inside the scene */
+    .corner button::after { top: 50%; left: auto; right: calc(100% + 6px); translate: 0 -50%; }
+    [data-action="fullscreen"][aria-pressed="true"] .enter, [data-action="fullscreen"]:not([aria-pressed="true"]) .exit { display: none; }
+
+    /* full screen: the viewer takes its frame full screen, keeping the comment box, and this scene fills the page */
+    :root[data-fullscreen] .scene[data-max] { position: fixed; inset: 0; z-index: 1; }
+    :root[data-fullscreen] .scene[data-max] h2 { display: none; }
+    :root[data-fullscreen] .scene[data-max] .view { aspect-ratio: auto; height: 100%; border: 0; border-radius: 0; }
+    .sep { width: 1px; margin: 3px 4px; background: var(--line); }
+    .meta { margin: 0; font: 12px/1.4 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+    .meta:empty { display: none; }
+</style>
+<h1>Plinth Study</h1>
+<main class="scenes">
+<section class="scene" aria-label="Study">
+    <div class="view"><canvas data-scene="study" data-entity="" data-point="" id="study-canvas" class="scene-canvas" aria-label="Study, 3D scene: drag to orbit, scroll to zoom, hold the right button and use W A S D to fly, click an object to select it"></canvas>
+        <div class="hud">
+            <div class="tools" role="toolbar" aria-label="Study tools" hidden>
+                <button type="button" id="study-translate" data-tool="translate" aria-pressed="true" aria-label="Move (1)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20m-7 7-3 3-3-3m10-10 3 3-3 3M9 5l3-3 3 3M5 15l-3-3 3-3"/></svg></button>
+                <button type="button" id="study-rotate" data-tool="rotate" aria-pressed="false" aria-label="Rotate (2)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
+                <button type="button" id="study-scale" data-tool="scale" aria-pressed="false" aria-label="Scale (3)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+                <span class="sep" aria-hidden="true"></span>
+                <button type="button" id="study-space" data-action="space" aria-pressed="false" aria-label="World axes (X)"><svg class="world" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></svg><svg class="local" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg></button>
+                <button type="button" id="study-snap" data-action="snap" aria-pressed="false" aria-label="Snap to 0.1 m and 15° (or hold Shift)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4m3 3 4 4"/></svg></button>
+                <span class="sep" aria-hidden="true"></span>
+                <button type="button" id="study-undo" data-action="undo" aria-label="Undo (Ctrl/⌘ Z)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+                <button type="button" id="study-redo" data-action="redo" aria-label="Redo (Shift Ctrl/⌘ Z)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+            </div>
+            <p class="meta scene-selection"></p>
+            <p class="meta scene-status" role="status">Loading scene…</p>
+        </div>
+        <div class="tools corner" role="toolbar" aria-label="Study view"><button type="button" id="study-fullscreen" data-action="fullscreen" aria-pressed="false" aria-label="Full screen"><svg class="enter" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg><svg class="exit" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg></button></div>
+    </div>
+    <script type="application/json" class="scene-data">
+{
+    "v": 1,
+    "camera": { "pos": [2.6, 1.7, 3.1], "target": [0, 0.55, 0], "fov": 38 },
+    "environment": { "clear": "token:--scene-bg", "ambient": [0.22, 0.23, 0.22], "exposure": 1, "toneMapping": "neutral" },
+    "materials": {
+        "floor": { "diffuse": [0.62, 0.63, 0.6], "gloss": 0.2, "metalness": 0 },
+        "plinth": { "diffuse": [0.86, 0.85, 0.82], "gloss": 0.35, "metalness": 0 },
+        "clay": { "diffuse": [0.72, 0.36, 0.22], "gloss": 0.45, "metalness": 0 },
+        "glaze": { "diffuse": [0.16, 0.33, 0.37], "gloss": 0.85, "metalness": 0 }
+    },
+    "models": {},
+    "entities": [
+        { "id": "floor", "name": "Floor", "primitive": "plane", "material": "floor", "scale": [8, 1, 8], "locked": true },
+        { "id": "plinth", "name": "Plinth", "primitive": "box", "material": "plinth", "pos": [0, 0.25, 0], "scale": [0.8, 0.5, 0.8], "shadows": true },
+        { "id": "vessel", "name": "Vessel", "primitive": "cylinder", "material": "clay", "pos": [-0.12, 0.72, 0.05], "scale": [0.26, 0.44, 0.26], "shadows": true },
+        { "id": "sphere", "name": "Sphere", "primitive": "sphere", "material": "glaze", "pos": [0.2, 0.6, -0.12], "scale": [0.2, 0.2, 0.2], "shadows": true },
+        { "id": "key", "name": "Key light", "light": { "type": "directional", "color": [1, 0.96, 0.9], "intensity": 1.4, "shadows": true }, "rot": [50, 35, 0] }
+    ]
+}
+    </script>
+</section>
+</main>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.5/build/playcanvas.min.mjs","playcanvas/camera-controls":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.5/scripts/esm/camera-controls.mjs"},"integrity":{"https://cdn.jsdelivr.net/npm/playcanvas@2.22.5/build/playcanvas.min.mjs":"sha384-taKFZkoi0MnbpX25w5jlEe4Kv4+DNMsEybkkBegCSD3k7K4/tqfoxBcKVK9pgi8f","https://cdn.jsdelivr.net/npm/playcanvas@2.22.5/scripts/esm/camera-controls.mjs":"sha384-mwdf62dEa/NFlVc9OvBgOrV/mObR9yRmvDTmB41Cd8YcU+OBC/p2L0DlL4OlkrjK"}}</script>
+<script type="module" data-scene-runtime>
+// pure scene logic for the page runtime; no engine or dom access, so node tests it directly
+
+const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const EDITS = 'edits';
+const MAX_SELECTION = 50;
+const PRIMITIVES = ['box', 'sphere', 'cylinder', 'cone', 'capsule', 'plane'];
+const LIGHTS = ['directional', 'omni', 'spot'];
+const TONE_MAPS = ['linear', 'aces', 'neutral'];
+const CAMERA_DEFAULT = { pos: [3, 2, 3], target: [0, 0.5, 0], fov: 45 };
+const ENV_DEFAULT = { clear: [0.12, 0.12, 0.13], ambient: [0.2, 0.2, 0.2], exposure: 1, toneMapping: 'aces' };
+const MAT_DEFAULT = { diffuse: [0.8, 0.8, 0.8], gloss: 0.5, metalness: 0 };
+const KINDS = ['primitive', 'model', 'light'];
+const EPS = 1e-4;
+
+// 1 - |dot| of two unit quaternions; 1e-8 is about 0.016 degrees
+const ROT_EPS = 1e-8;
+
+const isVec3 = (v) => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
+const round = (v, d = 4) => v.map((n) => Math.round(n * 10 ** d) / 10 ** d);
+const isColor = (v) => isVec3(v) || (typeof v === 'string' && /^token:--[\w-]+$/.test(v));
+const unit = (n) => Number.isFinite(n) && n >= 0 && n <= 1;
+
+const parseJson = (text) => {
+    try {
+        return [null, JSON.parse(text)];
+    } catch (e) {
+        return [e];
+    }
+};
+
+/** validates scene-data text; returns [errors, scene with defaults filled] */
+const parseScene = (text) => {
+    const [je, s] = parseJson(text);
+    if (je) return [[`scene-data is not valid JSON: ${je.message}`], null];
+    if (!s || s.v !== 1) return [['scene-data "v" must be 1'], null];
+    if (!Array.isArray(s.entities)) return [['scene-data "entities" must be an array'], null];
+    const errs = [];
+    const camera = { ...CAMERA_DEFAULT, ...s.camera };
+    if (!isVec3(camera.pos) || !isVec3(camera.target))
+        errs.push('camera "pos" and "target" must be three finite numbers');
+    if (!(camera.fov >= 5 && camera.fov <= 120)) errs.push('camera "fov" must be between 5 and 120');
+    const environment = { ...ENV_DEFAULT, ...s.environment };
+    if (!isColor(environment.clear) || !isColor(environment.ambient))
+        errs.push('environment "clear" and "ambient" must be RGB arrays or "token:--name"');
+    if (!(environment.exposure > 0)) errs.push('environment "exposure" must be a positive number');
+    if (!TONE_MAPS.includes(environment.toneMapping))
+        errs.push(`environment "toneMapping" must be one of ${TONE_MAPS.join(', ')}`);
+    const materials = Object.fromEntries(
+        Object.entries(s.materials ?? {}).map(([k, m]) => {
+            const mat = { ...MAT_DEFAULT, ...m };
+            if (!isColor(mat.diffuse) || (mat.emissive !== undefined && !isColor(mat.emissive)))
+                errs.push(`materials.${k}: "diffuse" and "emissive" must be RGB arrays or "token:--name"`);
+            if (!unit(mat.gloss) || !unit(mat.metalness))
+                errs.push(`materials.${k}: "gloss" and "metalness" must be between 0 and 1`);
+            return [k, mat];
+        })
+    );
+    const models = s.models ?? {};
+    const seen = new Set();
+    const entities = s.entities.map((e, i) => {
+        const at = `entities[${i}]${typeof e?.id === 'string' ? ` (${e.id})` : ''}`;
+        if (!e || typeof e !== 'object') return (errs.push(`${at} must be an object`), null);
+        if (!ID_RE.test(e.id ?? '')) errs.push(`${at}: "id" must match ${ID_RE}`);
+        else if (seen.has(e.id)) errs.push(`${at}: duplicate id "${e.id}"`);
+        if (typeof e.name !== 'string' || !e.name || e.name.length > 128 || e.name.includes('/'))
+            errs.push(`${at}: "name" must be 1-128 characters without "/"`);
+        if (e.parent !== undefined && !seen.has(e.parent))
+            errs.push(`${at}: parent "${e.parent}" must be an earlier entity's id`);
+        seen.add(e.id);
+        for (const k of ['pos', 'rot', 'scale'])
+            if (e[k] !== undefined && !isVec3(e[k])) errs.push(`${at}: "${k}" must be three finite numbers`);
+        const kinds = KINDS.filter((k) => e[k] !== undefined);
+        if (kinds.length > 1) errs.push(`${at}: has ${kinds.join(' and ')}; use at most one`);
+        if (e.primitive !== undefined && !PRIMITIVES.includes(e.primitive))
+            errs.push(`${at}: primitive must be one of ${PRIMITIVES.join(', ')}`);
+        if (e.material !== undefined && !materials[e.material])
+            errs.push(`${at}: material "${e.material}" is not a key of "materials"`);
+        if (e.model !== undefined && typeof models[e.model] !== 'string')
+            errs.push(`${at}: model "${e.model}" is not a key of "models"`);
+        if (e.light !== undefined && !LIGHTS.includes(e.light?.type))
+            errs.push(`${at}: light type must be one of ${LIGHTS.join(', ')}`);
+        if (e.light?.color !== undefined && !isColor(e.light.color))
+            errs.push(`${at}: light "color" must be an RGB array or "token:--name"`);
+        return { ...e, pos: e.pos ?? [0, 0, 0], rot: e.rot ?? [0, 0, 0], scale: e.scale ?? [1, 1, 1] };
+    });
+    return errs.length ? [errs, null] : [[], { v: 1, camera, environment, materials, models, entities }];
+};
+
+/** "/"-joined names from the root, e.g. /Desk/Lamp */
+const entityPath = (scene, id) => {
+    const by = new Map(scene.entities.map((e) => [e.id, e]));
+    const names = [];
+    for (let e = by.get(id); e; e = by.get(e.parent)) names.unshift(e.name);
+    return `/${names.join('/')}`;
+};
+
+/** the entity a click on `id` selects: itself, or for a locked part its nearest unlocked ancestor, else its root; `any` takes the part itself */
+const pickTarget = (scene, id, any = false) => {
+    const by = new Map(scene.entities.map((e) => [e.id, e]));
+    let e = by.get(id);
+    if (!e) return null;
+    while (!any && (e.locked || e.light) && e.parent) e = by.get(e.parent);
+    return e.id;
+};
+
+const transformOf = (e) => ({ pos: [...e.pos], rot: [...e.rot], scale: [...e.scale] });
+
+/** euler degrees to a quaternion, same convention as the engine's Quat#setFromEulerAngles */
+const quatOf = ([ex, ey, ez]) => {
+    const [sx, cx, sy, cy, sz, cz] = [ex, ey, ez].flatMap((d) => [
+        Math.sin((d * Math.PI) / 360),
+        Math.cos((d * Math.PI) / 360)
+    ]);
+    return [
+        sx * cy * cz - cx * sy * sz,
+        cx * sy * cz + sx * cy * sz,
+        cx * cy * sz - sx * sy * cz,
+        cx * cy * cz + sx * sy * sz
+    ];
+};
+const near = (a, b) => a.every((n, i) => Math.abs(n - b[i]) < EPS);
+
+// the engine reads rotations back in another euler form (0,180,0 as 180,0,180), so compare orientations
+const sameTransform = (a, b) => {
+    const [qa, qb] = [quatOf(a.rot), quatOf(b.rot)];
+    return (
+        near(a.pos, b.pos) && near(a.scale, b.scale) && Math.abs(qa.reduce((s, n, i) => s + n * qb[i], 0)) > 1 - ROT_EPS
+    );
+};
+
+const validOverride = (d) =>
+    d && isVec3(d.pos) && isVec3(d.rot) && isVec3(d.scale) ? { pos: d.pos, rot: d.rot, scale: d.scale } : null;
+
+/** edits doc id for an entity in a scene; ids never contain ":" */
+const docId = (key, id) => `${key}:${id}`;
+const entityOf = (key, doc) => (doc.startsWith(`${key}:`) ? doc.slice(key.length + 1) : null);
+
+/** db.batch writes for changed transforms: set when off base, delete an existing doc when back on it */
+const editWrites = (changes, scene, existing, key) => {
+    const by = new Map(scene.entities.map((e) => [e.id, e]));
+    return changes.flatMap(({ id, to }) => {
+        const e = by.get(id);
+        if (!e) return [];
+        const path = `${EDITS}/${docId(key, id)}`;
+        if (sameTransform(to, e)) return existing.has(id) ? [{ op: 'delete', path }] : [];
+        return [
+            {
+                op: 'set',
+                path,
+                data: {
+                    pos: round(to.pos),
+                    rot: round(to.rot),
+                    scale: round(to.scale),
+                    path: entityPath(scene, id),
+                    scene: key
+                }
+            }
+        ];
+    });
+};
+
+/** undo stack of ops, each op = [{ id, before, after }] */
+const createHistory = (limit = 100) => {
+    const undo = [];
+    const redo = [];
+    return {
+        push: (op) => {
+            undo.push(op);
+            if (undo.length > limit) undo.shift();
+            redo.length = 0;
+        },
+        undo: () => {
+            const op = undo.pop();
+            if (!op) return null;
+            redo.push(op);
+            return op.map((o) => ({ id: o.id, to: o.before }));
+        },
+        redo: () => {
+            const op = redo.pop();
+            if (!op) return null;
+            undo.push(op);
+            return op.map((o) => ({ id: o.id, to: o.after }));
+        }
+    };
+};
+
+/** the saved view if it was taken under this authored camera; otherwise the authored camera */
+const viewFor = (saved, camera) =>
+    saved && isVec3(saved.pos) && isVec3(saved.target) && saved.from === JSON.stringify(camera) ? saved : camera;
+
+const anchorAttrs = (path, point) => ({ entity: path ?? '', point: point ? round(point, 2).join(',') : '' });
+
+/** css hex or rgb()/rgba() to 0-1 floats; null for anything else */
+const parseColor = (css) => {
+    const s = (css ?? '').trim();
+    const h = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(s);
+    if (h) {
+        const x = h[1].length === 3 ? [...h[1]].map((c) => c + c).join('') : h[1];
+        return [0, 2, 4].map((i) => parseInt(x.slice(i, i + 2), 16) / 255);
+    }
+    const m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/.exec(s);
+    return m ? [m[1], m[2], m[3]].map((n) => Number(n) / 255) : null;
+};
+
+import {
+    Application,
+    Asset,
+    BoundingBox,
+    Color,
+    Entity,
+    FILLMODE_NONE,
+    GAMMA_SRGB,
+    Gizmo,
+    Layer,
+    OutlineRenderer,
+    Picker,
+    RESOLUTION_AUTO,
+    Ray,
+    RotateGizmo,
+    ScaleGizmo,
+    StandardMaterial,
+    TONEMAP_ACES,
+    TONEMAP_LINEAR,
+    TONEMAP_NEUTRAL,
+    TranslateGizmo,
+    Vec2,
+    Vec3,
+    drawQuadWithShader
+} from 'playcanvas';
+import { CameraControls } from 'playcanvas/camera-controls';
+
+
+// picking renders at full canvas size, and a miss retries within PICK_SLOP px so thin rails and legs still pick
+const PICK_SLOP = 4;
+const CLICK_SLOP = 4;
+const MAX_PIXEL_RATIO = 2;
+const SNAP = { translate: 0.1, rotate: 15, scale: 0.1 };
+const TOOL_KEYS = { 1: 'translate', 2: 'rotate', 3: 'scale' };
+// the fly keys, released for the engine when the window loses focus (it would keep flying on a key held then)
+const FLY_CODES = [
+    'KeyW',
+    'KeyA',
+    'KeyS',
+    'KeyD',
+    'KeyQ',
+    'KeyE',
+    'ArrowUp',
+    'ArrowDown',
+    'ArrowLeft',
+    'ArrowRight',
+    'ShiftLeft',
+    'ShiftRight',
+    'ControlLeft',
+    'ControlRight'
+];
+const TONE = { linear: TONEMAP_LINEAR, aces: TONEMAP_ACES, neutral: TONEMAP_NEUTRAL };
+const VIEW_KEY = 'scene-view';
+// the scene shown full screen, kept across a reload onto a new version
+const FULL_KEY = 'scene-fullscreen';
+const SELECT_COLOR = new Color(1, 1, 1);
+// the selection box where the floor or another object hides it, as in the editor
+const SELECT_BEHIND_COLOR = new Color(1, 1, 1, 0.2);
+
+// comment hover and focus outlines take the viewer's comment orange (#ff6600), as on 2d pages; the outline
+// pass shows colours a gamma step darker (a muddy brown), so the orange is gamma-encoded first
+const COMMENT_COLOR = new Color(...[255, 102, 0].map((v) => (v / 255) ** (1 / 2.2)));
+// css px the outline edge reaches each side of a silhouette
+const OUTLINE_REACH = 1.5;
+// css px wide the selection box edges draw (webgl lines are one device px, so each edge draws this many times over)
+const SELECT_BOX_PX = 2;
+// the box draws only its corners, as in the editor: this fraction of each edge from either end
+const SELECT_BOX_CORNER = 0.15;
+// a box's 12 edges, as pairs of corner indices whose bits pick max x, y and z
+const BOX_EDGES = [
+    [0, 1],
+    [2, 3],
+    [4, 5],
+    [6, 7],
+    [0, 2],
+    [1, 3],
+    [4, 6],
+    [5, 7],
+    [0, 4],
+    [1, 5],
+    [2, 6],
+    [3, 7]
+];
+const FALLBACK_RGB = [0.5, 0.5, 0.5];
+const MIN_SHADOW_DISTANCE = 16;
+// the viewer quotes at most this many objects inside a drawn comment area; past it, those covering most of it
+const MAX_AREA_OBJECTS = 16;
+const SHADOW_BIAS = 0.05;
+
+// a parent scaled unevenly by more than this skews a rotated or scaled child
+const SKEW_EPS = 1e-4;
+
+// fly speed per second as a fraction of the scene's diagonal (the script's 10 m/s crosses a desk in a blink), clamped in m/s
+const FLY_SCENE_FRACTION = 0.25;
+const FLY_SPEED = { min: 0.3, max: 20 };
+
+// a drawn comment area is captured for the agent at most this many px on its long side, as webp (jpeg where unsupported)
+const AREA_IMAGE_PX = 800;
+const AREA_IMAGE_QUALITY = 0.85;
+
+// a clicked object's capture reaches this far past its screen box: a fraction of its long side, at least OBJECT_IMAGE_PAD_PX
+const OBJECT_IMAGE_PAD = 0.25;
+const OBJECT_IMAGE_PAD_PX = 48;
+
+const attempt = (f) => {
+    try {
+        return [null, f()];
+    } catch (e) {
+        return [e];
+    }
+};
+const settle = (p) =>
+    p.then(
+        (v) => [null, v],
+        (e) => [e]
+    );
+const typing = (t) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+
+const toColor = (v) => {
+    const rgb =
+        typeof v === 'string' ? parseColor(getComputedStyle(document.documentElement).getPropertyValue(v.slice(6))) : v;
+    if (!rgb) console.warn(`scene colour ${v} is not a hex or rgb() value; using grey`);
+    return new Color(...(rgb ?? FALLBACK_RGB));
+};
+
+const place = (e, t) => {
+    e.setLocalPosition(...t.pos);
+    e.setLocalEulerAngles(...t.rot);
+    e.setLocalScale(...t.scale);
+};
+
+const read = (e) => {
+    const [p, r, s] = [e.getLocalPosition(), e.getLocalEulerAngles(), e.getLocalScale()];
+    return { pos: round([p.x, p.y, p.z]), rot: round([r.x, r.y, r.z]), scale: round([s.x, s.y, s.z]) };
+};
+
+const loadView = (key) => {
+    const [, raw] = attempt(() => sessionStorage.getItem(`${VIEW_KEY}:${key}`));
+    return attempt(() => JSON.parse(raw))[1] ?? null;
+};
+
+/** one scene: its canvas, the .scene-data and toolbar in its .scene section; returns its key handlers */
+const mount = async (canvas, db, activate, isActive) => {
+    const key = canvas.dataset.scene;
+    const root = canvas.closest('.scene') ?? document.body;
+    const q = (sel) => root.querySelector(sel);
+    const ui = {
+        tools: q('.hud .tools'),
+        selection: q('.scene-selection'),
+        status: q('.scene-status'),
+        space: q('[data-action="space"]'),
+        snap: q('[data-action="snap"]'),
+        undo: q('[data-action="undo"]'),
+        redo: q('[data-action="redo"]')
+    };
+    let sayTimer = 0;
+    const say = (text, ms = 0) => {
+        if (!ui.status) return;
+        clearTimeout(sayTimer);
+        ui.status.textContent = text;
+        if (ms) sayTimer = setTimeout(() => (ui.status.textContent = ''), ms);
+    };
+    const dataEl = q('.scene-data');
+    if (!dataEl) return console.error(`scene-data (${key}): no .scene-data JSON block in its .scene section`);
+    const [errs, scene] = parseScene(dataEl.textContent);
+    if (errs.length) {
+        for (const e of errs) console.error(`scene-data (${key}): ${e}`);
+        return say('This scene has errors');
+    }
+    const [ae, app] = attempt(
+        () => new Application(canvas, { graphicsDeviceOptions: { antialias: true, alpha: false } })
+    );
+    if (ae || !app.graphicsDevice) {
+        console.error(`3D isn't available in this browser (${key}): ${ae?.message ?? 'no graphics device'}`);
+        return say("3D isn't available in this browser");
+    }
+    app.setCanvasFillMode(FILLMODE_NONE);
+    app.setCanvasResolution(RESOLUTION_AUTO);
+    app.graphicsDevice.maxPixelRatio = Math.min(devicePixelRatio, MAX_PIXEL_RATIO);
+
+    // each scene sizes to its own box in the page layout
+    const box = canvas.parentElement;
+    const fit = () => app.resizeCanvas(box.clientWidth, box.clientHeight);
+    new ResizeObserver(fit).observe(box);
+    fit();
+
+    // the viewer takes its frame full screen (so its comment box stays) and marks the page root; this scene then fills it
+    const fs = q('[data-action="fullscreen"]');
+    const full = () => root.hasAttribute('data-max') && document.documentElement.hasAttribute('data-fullscreen');
+    const syncFull = () => {
+        const on = full();
+        fs.setAttribute('aria-pressed', String(on));
+        fs.ariaLabel = on ? 'Exit full screen' : 'Full screen';
+    };
+    if (fs) {
+        if (attempt(() => sessionStorage.getItem(FULL_KEY))[1] === key) root.setAttribute('data-max', '');
+        fs.addEventListener('click', () => {
+            const on = !full();
+            for (const s of document.querySelectorAll('.scene[data-max]')) s.removeAttribute('data-max');
+            if (on) root.setAttribute('data-max', '');
+            attempt(() => (on ? sessionStorage.setItem(FULL_KEY, key) : sessionStorage.removeItem(FULL_KEY)));
+            document.dispatchEvent(new CustomEvent('agent:fullscreen', { detail: { on } }));
+        });
+        document.addEventListener('agent:fullscreen-change', syncFull);
+        syncFull();
+    }
+
+    const env = scene.environment;
+    app.scene.exposure = env.exposure;
+    const mats = new Map(
+        Object.entries(scene.materials).map(([k, m]) => {
+            const mat = new StandardMaterial();
+            mat.diffuse = toColor(m.diffuse);
+            mat.useMetalness = true;
+            mat.metalness = m.metalness;
+            mat.gloss = m.gloss;
+            if (m.emissive) mat.emissive = toColor(m.emissive);
+            mat.update();
+            return [k, mat];
+        })
+    );
+
+    // scene entities, parents first (parseScene guarantees the order)
+    const nodes = new Map();
+    for (const d of scene.entities) {
+        const e = new Entity(d.name);
+        e.sceneId = d.id;
+        if (d.primitive)
+            e.addComponent('render', {
+                type: d.primitive,
+                material: mats.get(d.material),
+                castShadows: !!d.shadows,
+                receiveShadows: true
+            });
+        if (d.light)
+            e.addComponent('light', {
+                type: d.light.type,
+                color: toColor(d.light.color ?? [1, 1, 1]),
+                intensity: d.light.intensity ?? 1,
+                castShadows: !!d.light.shadows,
+                shadowResolution: 2048,
+                shadowDistance: MIN_SHADOW_DISTANCE,
+                normalOffsetBias: SHADOW_BIAS,
+                range: d.light.range ?? 10,
+                innerConeAngle: d.light.inner ?? 30,
+                outerConeAngle: d.light.outer ?? 45
+            });
+        (d.parent ? nodes.get(d.parent) : app.root).addChild(e);
+        nodes.set(d.id, e);
+        place(e, transformOf(d));
+    }
+
+    const cam = new Entity('camera');
+    cam.addComponent('camera', {
+        fov: scene.camera.fov,
+        nearClip: 0.05,
+        farClip: 500,
+        toneMapping: TONE[env.toneMapping],
+        gammaCorrection: GAMMA_SRGB
+    });
+    cam.addComponent('script');
+    app.root.addChild(cam);
+    const applyTheme = () => {
+        cam.camera.clearColor = toColor(env.clear);
+        app.scene.ambientLight = toColor(env.ambient);
+    };
+    applyTheme();
+
+    // directional shadows end shadowDistance from the camera; reach past the farthest caster (and its shadow)
+    const suns = scene.entities
+        .filter((d) => d.light?.type === 'directional' && d.light.shadows)
+        .map((d) => nodes.get(d.id).light);
+    const casters = new BoundingBox();
+    if (suns.length)
+        app.on('update', () => {
+            let empty = true;
+            for (const r of app.root.findComponents('render'))
+                if (r.castShadows)
+                    for (const mi of r.meshInstances) {
+                        if (empty) casters.copy(mi.aabb);
+                        else casters.add(mi.aabb);
+                        empty = false;
+                    }
+            if (empty) return;
+            const reach = cam.getPosition().distance(casters.center) + casters.halfExtents.length() * 2;
+            const dist = Math.min(Math.max(reach, MIN_SHADOW_DISTANCE), cam.camera.farClip);
+
+            // a longer reach spreads the same shadow map over more metres, so the bias grows with it
+            for (const l of suns)
+                Object.assign(l, {
+                    shadowDistance: dist,
+                    normalOffsetBias: (SHADOW_BIAS * dist) / MIN_SHADOW_DISTANCE
+                });
+        });
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+    new MutationObserver(applyTheme).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme']
+    });
+
+    // a pose saved under an older authored camera would hide the agent's camera change
+    const from = JSON.stringify(scene.camera);
+    const view = viewFor(loadView(key), scene.camera);
+    cam.setPosition(...view.pos);
+    cam.lookAt(...view.target);
+    const cc = cam.script.create(CameraControls);
+
+    // as the camera-controls script: W/A/S/D/Q/E fly (Shift faster, Ctrl slower) and the right button looks around;
+    // the engine hears keys on the whole window, so only the active scene flies, and not while a field has focus
+    app.on('update', () => {
+        const fly = isActive() && !typing(document.activeElement);
+        if (cc.enableFly !== fly) cc.enableFly = fly;
+    });
+    cc.pitchRange = new Vec2(-89.9, 89.9);
+    cc.reset(new Vec3(...view.target), new Vec3(...view.pos));
+    let lastView = '';
+    setInterval(() => {
+        const [p, f] = [cam.getPosition(), cc.focusPoint];
+        const s = JSON.stringify({ pos: round([p.x, p.y, p.z], 3), target: round([f.x, f.y, f.z], 3), from });
+        if (s !== lastView) attempt(() => sessionStorage.setItem(`${VIEW_KEY}:${key}`, (lastView = s)));
+    }, 1000);
+
+    // viewer edits live in db, as edits/<scene>:<entity>, and override the scene json
+    const col = db?.collection(EDITS);
+    const editable = !!col;
+    let existing = new Set();
+    let dragging = new Set();
+    const pending = new Map();
+    const docsOf = (r) =>
+        new Map(
+            r.docs.flatMap((d) => {
+                const id = entityOf(key, d.id);
+                return id ? [[id, d.data()]] : [];
+            })
+        );
+
+    // a collection read keeps the runtime's version pin of a deleted doc; a doc read resets it
+    const repin = (ids) => Promise.all(ids.map((id) => settle(col.doc(docId(key, id)).get())));
+    const sync = (docs) => {
+        const gone = [...existing].filter((id) => !docs.has(id));
+        existing = new Set(docs.keys());
+        if (gone.length) repin(gone);
+        for (const d of scene.entities) {
+            if (dragging.has(d.id) || pending.get(d.id)) continue;
+            place(nodes.get(d.id), validOverride(docs.get(d.id)) ?? transformOf(d));
+        }
+    };
+    if (col) {
+        const [ge, r] = await settle(col.get());
+        if (ge) console.error(`scene edits (${key}) could not be read: ${ge.message}`);
+        else sync(docsOf(r));
+        col.onSnapshot(
+            (r) => sync(docsOf(r)),
+            (err) => console.error(`scene edits (${key}) stopped syncing: ${err.message}`)
+        );
+    }
+
+    app.start();
+    app.once('frameend', () => {
+        root.dataset.sceneReady = '';
+        say('');
+        console.info('scene ready', {
+            scene: key,
+            entities: scene.entities.length,
+            device: app.graphicsDevice.deviceType,
+            editable
+        });
+    });
+
+    const containers = new Map();
+    const container = (url) => {
+        if (!containers.has(url))
+            containers.set(
+                url,
+                new Promise((ok) => {
+                    const a = new Asset(url, 'container', { url });
+                    a.once('load', () => ok(a));
+                    a.once('error', (err) => {
+                        console.warn(`model ${url} did not load: ${err}`);
+                        ok(null);
+                    });
+                    app.assets.add(a);
+                    app.assets.load(a);
+                })
+            );
+        return containers.get(url);
+    };
+    for (const d of scene.entities)
+        if (d.model)
+            container(scene.models[d.model]).then(
+                (a) =>
+                    a &&
+                    nodes
+                        .get(d.id)
+                        .addChild(
+                            a.resource.instantiateRenderEntity({ castShadows: !!d.shadows, receiveShadows: true })
+                        )
+            );
+
+    // picking: gpu for hover, cpu ray vs aabb where there is no hover (touch, pen); both return the part hit
+    const targets = new Map(scene.entities.map((d) => [d.id, pickTarget(scene, d.id)]));
+    const owner = (node) => {
+        let n = node;
+        while (n && !n.sceneId) n = n.parent;
+        return n ?? null;
+    };
+
+    // the object a part belongs to: its nearest unlocked ancestor, so a compound object moves as one
+    const objectOf = (part) => part && (nodes.get(targets.get(part.sceneId)) ?? part);
+
+    // a double-click drills into an object, so clicks inside it pick its parts; a click elsewhere or Esc leaves
+    let scope = null;
+    const level = (part) => (part && scope && objectOf(part) === scope ? part : objectOf(part));
+    const picker = new Picker(app, 1, 1, true);
+    const world = [app.scene.layers.getLayerByName('World')];
+    const prepare = () => {
+        picker.resize(Math.max(1, canvas.clientWidth | 0), Math.max(1, canvas.clientHeight | 0));
+        picker.prepare(cam.camera, app.scene, world);
+    };
+    const gpuPick = async (x, y) => {
+        prepare();
+        let [mi] = await picker.getSelectionAsync(x, y);
+        if (!mi)
+            [mi] = await picker.getSelectionAsync(
+                Math.max(0, x - PICK_SLOP),
+                Math.max(0, y - PICK_SLOP),
+                PICK_SLOP * 2 + 1,
+                PICK_SLOP * 2 + 1
+            );
+        const e = mi?.node ? owner(mi.node) : null;
+        const p = e && (await picker.getWorldPointAsync(x, y));
+        return { e, p: p ? [p.x, p.y, p.z] : null };
+    };
+    const ray = new Ray();
+    const hit = new Vec3();
+    const cpuPick = (x, y) => {
+        cam.camera.screenToWorld(x, y, cam.camera.nearClip, ray.origin);
+        cam.camera.screenToWorld(x, y, cam.camera.farClip, ray.direction);
+        ray.direction.sub(ray.origin).normalize();
+        let best = { e: null, p: null, d: Infinity };
+        for (const r of app.root.findComponents('render')) {
+            const e = owner(r.entity);
+            if (!e) continue;
+            for (const mi of r.meshInstances) {
+                if (!mi.aabb.intersectsRay(ray, hit)) continue;
+                const d = hit.distance(ray.origin);
+                if (d < best.d) best = { e, p: [hit.x, hit.y, hit.z], d };
+            }
+        }
+        return best;
+    };
+
+    // selection, hover and comment anchor attributes
+
+    // outlined meshes render in their own layer; the default (immediate) is also drawn by the main camera, unlit
+    const outlineLayer = new Layer({ name: 'Outline' });
+    app.scene.layers.push(outlineLayer);
+    const outline = new OutlineRenderer(app, outlineLayer);
+
+    // the engine's edge reaches ~1 device px with no width option; its extend passes sample at 1x and 2x
+    // uOffset, so a wider offset thickens it (same passes as OutlineRenderer.onPostRender, playcanvas 2.22)
+    const reach = OUTLINE_REACH * app.graphicsDevice.maxPixelRatio;
+    const offset = new Float32Array(2);
+    outline.onPostRender = function () {
+        const d = app.graphicsDevice;
+        const pass = (x, y, src, mul, dst) => {
+            offset.set([x, y]);
+            d.scope.resolve('uOffset').setValue(offset);
+            d.scope.resolve('source').setValue(src.colorBuffer);
+            d.scope.resolve('uSrcMultiplier').setValue(mul);
+            drawQuadWithShader(d, dst, this.shaderExtend);
+        };
+        pass(reach / 2 / this.rt.width, 0, this.rt, 0, this.tempRt);
+        pass(0, reach / 2 / this.rt.height, this.tempRt, 1, this.rt);
+    };
+    const immediate = app.scene.layers.getLayerByName('Immediate');
+    let sel = [];
+    let hov = null;
+
+    // what the viewer's comment focus is on: outlined like a selection
+    let marked = [];
+
+    // in comment mode, hover outlines what a comment would land on, down to the exact part;
+    // otherwise only a selection is outlined
+    let commenting = false;
+    let drafting = false;
+
+    // a capture in progress draws no outlines, whatever hover or comment focus comes in meanwhile
+    let capturing = 0;
+
+    // comment mode hides the selection and its gizmo, so only the comment's highlight shows; leaving restores them
+    const shown = () => (commenting ? [] : sel);
+
+    // world bounds of entities' meshes, reusing `out`; null when they have none
+    const boundsOf = (list, out) => {
+        let empty = true;
+        for (const e of list)
+            for (const r of e.findComponents('render'))
+                for (const mi of r.meshInstances) {
+                    if (empty) out.copy(mi.aabb);
+                    else out.add(mi.aabb);
+                    empty = false;
+                }
+        return empty ? null : out;
+    };
+
+    // once meshes have world bounds, fly at a pace that suits the scene; Shift doubles it, Ctrl halves it
+    app.once('frameend', () => {
+        const b = boundsOf([...nodes.values()], new BoundingBox());
+        if (!b) return;
+        const v = Math.min(Math.max(b.halfExtents.length() * 2 * FLY_SCENE_FRACTION, FLY_SPEED.min), FLY_SPEED.max);
+        Object.assign(cc, { moveSpeed: v, moveFastSpeed: v * 2, moveSlowSpeed: v / 2 });
+    });
+
+    // selection also gets a box's corners, since a silhouette edge alone is easy to lose against the scene; as in the
+    // editor it draws twice, solid where depth tested and faint over everything, so hidden edges still show, dimmed.
+    // the solid pass goes first: the engine's no-depth lines still write depth, which would let it pass everywhere
+    const selBox = new BoundingBox();
+    const corners = Array.from({ length: 8 }, () => new Vec3());
+    const segs = [];
+    const [dir, side, eye] = [new Vec3(), new Vec3(), new Vec3()];
+
+    // each corner mark repeats one device px apart across itself as seen from the camera, so it reads SELECT_BOX_PX wide
+    const [tip, far] = [new Vec3(), new Vec3()];
+    const boxSegs = (b) => {
+        const [lo, hi] = [b.getMin(), b.getMax()];
+        corners.forEach((c, i) => c.set(i & 1 ? hi.x : lo.x, i & 2 ? hi.y : lo.y, i & 4 ? hi.z : lo.z));
+        const n = Math.max(1, Math.round(SELECT_BOX_PX * app.graphicsDevice.maxPixelRatio));
+        const px = (2 * Math.tan((cam.camera.fov * Math.PI) / 360)) / Math.max(1, canvas.height);
+        let k = 0;
+        for (const [a, z] of BOX_EDGES) {
+            dir.sub2(corners[z], corners[a]);
+            eye.add2(corners[a], corners[z]).mulScalar(0.5).sub(cam.getPosition());
+            side.cross(dir, eye)
+                .normalize()
+                .mulScalar(eye.length() * px);
+            tip.copy(dir).mulScalar(SELECT_BOX_CORNER).add(corners[a]);
+            far.copy(dir).mulScalar(-SELECT_BOX_CORNER).add(corners[z]);
+            for (let j = 0; j < n; j++) {
+                const t = j - (n - 1) / 2;
+                for (const c of [corners[a], tip, corners[z], far])
+                    (segs[k++] ??= new Vec3()).copy(side).mulScalar(t).add(c);
+            }
+        }
+        return segs.slice(0, k);
+    };
+    app.on('update', () => {
+        outline.frameUpdate(cam, immediate, false);
+        for (const e of shown()) {
+            if (!boundsOf([e], selBox)) continue;
+            const lines = boxSegs(selBox);
+            app.drawLines(lines, SELECT_COLOR, true);
+            app.drawLines(lines, SELECT_BEHIND_COLOR, false);
+        }
+    });
+    const paint = () => {
+        outline.removeAllEntities();
+        if (capturing) return;
+        const on = shown();
+        for (const e of on) outline.addEntity(e, SELECT_COLOR);
+        for (const e of marked) if (!on.includes(e)) outline.addEntity(e, COMMENT_COLOR);
+
+        // hover outlines only in comment mode; in edit mode only a selection is outlined
+        if (commenting && !drafting && hov && !marked.includes(hov)) outline.addEntity(hov, COMMENT_COLOR);
+    };
+    const anchor = (e, p) => {
+        const a = anchorAttrs(e ? entityPath(scene, e.sceneId) : null, p);
+        canvas.dataset.entity = a.entity;
+        canvas.dataset.point = a.point;
+    };
+
+    // comment mode asks what is under the cursor, so the viewer anchors the object, not the canvas; the scene
+    // draws the highlight itself (hover as usual, the comment's objects as a selection) instead of a screen box
+    const label = root.getAttribute('aria-label') || key;
+    const corner = new Vec3();
+    const screen = new Vec3();
+
+    // an entity's world bounds as a canvas-px box, clipped to the canvas; null without meshes
+    const screenBox = (e, c) => {
+        const b = boundsOf([e], new BoundingBox());
+        if (!b) return null;
+        const [lo, hi] = [b.getMin(), b.getMax()];
+        let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+        for (let i = 0; i < 8; i++) {
+            corner.set(i & 1 ? hi.x : lo.x, i & 2 ? hi.y : lo.y, i & 4 ? hi.z : lo.z);
+            cam.camera.worldToScreen(corner, screen);
+            [x0, y0, x1, y1] = [
+                Math.min(x0, screen.x),
+                Math.min(y0, screen.y),
+                Math.max(x1, screen.x),
+                Math.max(y1, screen.y)
+            ];
+        }
+        [x0, y0, x1, y1] = [Math.max(x0, 0), Math.max(y0, 0), Math.min(x1, c.width), Math.min(y1, c.height)];
+        return x1 > x0 && y1 > y0 ? { x0, y0, x1, y1 } : null;
+    };
+    // a click comments on the object, a double-click drills into the part, as in edit mode; a click (not a hover)
+    // also captures the object and some of what surrounds it, as the viewer sees it
+    window.agent?.pick?.(canvas, async (x, y, how) => {
+        const c = canvas.getBoundingClientRect();
+        const { e: part, p } = await gpuPick(x - c.left, y - c.top);
+
+        // empty space takes no comment; a drawn area still can
+        if (!part) return false;
+        const clicks = how?.clicks ?? 0;
+        if (clicks >= 2) scope = objectOf(part);
+        else if (clicks === 1 && objectOf(part) !== scope) scope = null;
+        const e = level(part);
+        const a = anchorAttrs(entityPath(scene, e.sceneId), p);
+        const b = clicks && screenBox(e, c);
+        const pad = b && Math.max(Math.max(b.x1 - b.x0, b.y1 - b.y0) * OBJECT_IMAGE_PAD, OBJECT_IMAGE_PAD_PX);
+        const [x0, y0, x1, y1] = b
+            ? [
+                  Math.max(0, b.x0 - pad),
+                  Math.max(0, b.y0 - pad),
+                  Math.min(c.width, b.x1 + pad),
+                  Math.min(c.height, b.y1 + pad)
+              ]
+            : [];
+        const image = b
+            ? await capture({ left: c.left + x0, top: c.top + y0, width: x1 - x0, height: y1 - y0 })
+            : undefined;
+        return {
+            label: `${label} › ${a.entity}`,
+            snippet: `<canvas data-scene="${key}" data-entity="${a.entity}" data-point="${a.point}">`,
+            image
+        };
+    });
+
+    const byId = new Map(scene.entities.map((d) => [d.id, d]));
+    const byPath = new Map(scene.entities.map((d) => [entityPath(scene, d.id), nodes.get(d.id)]));
+    canvas.addEventListener('agent:focus', (ev) => {
+        const d = ev.detail;
+        const paths = d ? [d.snippet, ...d.inside].map((s) => /data-entity="([^"]+)"/.exec(s)?.[1]) : [];
+        marked = paths.map((p) => byPath.get(p)).filter(Boolean);
+        if (marked.length) ev.preventDefault();
+        paint();
+    });
+
+    // a comment's pin sits on the world point it was placed at, hidden when that point is behind the camera or off the canvas;
+    // an area's sits on the centre of the objects it lists, since the scene under its centre can be a wall far behind them
+    const pinWorld = new Vec3();
+    const pinScreen = new Vec3();
+    const toPin = new Vec3();
+    const pinBox = new BoundingBox();
+    canvas.addEventListener('agent:pin', (ev) => {
+        const d = ev.detail;
+        const b = boundsOf(
+            d.inside.map((s) => byPath.get(/data-entity="([^"]+)"/.exec(s)?.[1])).filter(Boolean),
+            pinBox
+        );
+        const p = /data-point="([^"]+)"/.exec(d.snippet)?.[1]?.split(',').map(Number);
+        if (b) pinWorld.copy(b.center);
+        else if (p?.length === 3 && p.every(Number.isFinite)) pinWorld.set(...p);
+        else return;
+        toPin.sub2(pinWorld, cam.getPosition());
+        const c = canvas.getBoundingClientRect();
+        cam.camera.worldToScreen(pinWorld, pinScreen);
+        d.hidden =
+            toPin.dot(cam.forward) <= 0 ||
+            pinScreen.x < 0 ||
+            pinScreen.y < 0 ||
+            pinScreen.x > c.width ||
+            pinScreen.y > c.height;
+        [d.x, d.y] = [c.left + pinScreen.x, c.top + pinScreen.y];
+    });
+
+    // and a drawn area lists the outermost objects at least half inside it that show there, parents before children
+    window.agent?.pickRect?.(canvas, async (r) => {
+        const c = canvas.getBoundingClientRect();
+        const [rx0, ry0, rx1, ry1] = [
+            r.left - c.left,
+            r.top - c.top,
+            r.left - c.left + r.width,
+            r.top - c.top + r.height
+        ];
+
+        // what shows in the area, and every entity above it, so parts hidden behind others are left out
+        prepare();
+        const [px, py] = [Math.max(0, rx0 | 0), Math.max(0, ry0 | 0)];
+        const seen = new Set();
+        for (const mi of await picker.getSelectionAsync(
+            px,
+            py,
+            Math.max(1, (Math.min(rx1, c.width) - px) | 0),
+            Math.max(1, (Math.min(ry1, c.height) - py) | 0)
+        ))
+            for (let n = mi.node; n; n = n.parent) seen.add(n);
+        const picked = new Set();
+        const under = (d) => {
+            for (let p = d.parent; p; p = byId.get(p).parent) if (picked.has(p)) return true;
+            return false;
+        };
+        const found = [];
+        for (const d of scene.entities) {
+            if (d.light || under(d) || !seen.has(nodes.get(d.id))) continue;
+            const b = screenBox(nodes.get(d.id), c);
+            if (!b) continue;
+            const w = Math.max(0, Math.min(b.x1, rx1) - Math.max(b.x0, rx0));
+            const h = Math.max(0, Math.min(b.y1, ry1) - Math.max(b.y0, ry0));
+            if (w * h < ((b.x1 - b.x0) * (b.y1 - b.y0)) / 2) continue;
+            picked.add(d.id);
+            found.push({ d, cover: w * h });
+        }
+        const keep = new Set([...found].sort((a, b) => b.cover - a.cover).slice(0, MAX_AREA_OBJECTS));
+        const inside = found
+            .filter((f) => keep.has(f))
+            .map((f) => `<canvas data-scene="${key}" data-entity="${entityPath(scene, f.d.id)}">`);
+        const [cp, fp] = [cam.getPosition(), cc.focusPoint];
+        const pose = [...round([cp.x, cp.y, cp.z], 2), ...round([fp.x, fp.y, fp.z], 2), cam.camera.fov].join(',');
+
+        // an area over no objects (a shadow on the floor) pins on the scene point under its centre
+        const [p, image] = await Promise.all([
+            inside.length ? null : gpuPick((rx0 + rx1) / 2, (ry0 + ry1) / 2).then((h) => h.p),
+            capture(r)
+        ]);
+        const point = p ? ` data-point="${anchorAttrs(null, p).point}"` : '';
+        return {
+            label: `${label} › area`,
+            snippet: `<canvas data-scene="${key}" data-camera="${pose}"${point}>`,
+            inside,
+            image
+        };
+    });
+
+    // the drawn area as the viewer saw it, without hover or comment outlines; a webgl canvas is readable only
+    // while the frame it drew is still in its buffer, so the copy is made as a frame ends: the second one, since
+    // the frame under way may have drawn its outlines already
+    const capture = (r) => {
+        capturing++;
+        paint();
+        return new Promise((ok) =>
+            app.once('frameend', () =>
+                app.once('frameend', () => {
+                    const c = canvas.getBoundingClientRect();
+                    const [sx, sy] = [canvas.width / c.width, canvas.height / c.height];
+                    const [x, y, w, h] = [(r.left - c.left) * sx, (r.top - c.top) * sy, r.width * sx, r.height * sy];
+                    const k = Math.min(1, AREA_IMAGE_PX / Math.max(w, h));
+                    const out = document.createElement('canvas');
+                    [out.width, out.height] = [Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))];
+                    out.getContext('2d').drawImage(canvas, x, y, w, h, 0, 0, out.width, out.height);
+                    capturing--;
+                    paint();
+                    const [, webp] = attempt(() => out.toDataURL('image/webp', AREA_IMAGE_QUALITY));
+                    ok(
+                        webp?.startsWith('data:image/webp')
+                            ? webp
+                            : attempt(() => out.toDataURL('image/jpeg', AREA_IMAGE_QUALITY))[1]
+                    );
+                })
+            )
+        );
+    };
+
+    // gizmos: only the active tool's gizmo is enabled and attached
+    const layer = Gizmo.createLayer(app);
+    const gizmos = {
+        translate: new TranslateGizmo(cam.camera, layer),
+        rotate: new RotateGizmo(cam.camera, layer),
+        scale: new ScaleGizmo(cam.camera, layer)
+    };
+    const history = createHistory();
+    // like an editor: a click selects, and the active gizmo attaches at once
+    let tool = 'translate';
+    let space = 'world';
+    let snapLatch = false;
+    let snapHeld = false;
+    let onHandle = false;
+    let before = null;
+    const attach = () => {
+        for (const [name, g] of Object.entries(gizmos)) {
+            const on = editable && name === tool && shown().length > 0;
+            if (on) g.attach(sel);
+            else g.detach();
+            g.enabled = on;
+        }
+    };
+    // rotating or scaling a part under an unevenly scaled parent would skew it, so only Move is offered then
+    const skewed = (e) => {
+        for (let n = e.parent; n && n !== app.root; n = n.parent) {
+            const s = n.getLocalScale();
+            if (Math.abs(s.x - s.y) > SKEW_EPS || Math.abs(s.y - s.z) > SKEW_EPS) return true;
+        }
+        return false;
+    };
+    const moveOnly = () => sel.some(skewed);
+    const select = (list) => {
+        sel = list.slice(0, MAX_SELECTION);
+        ui.selection.textContent = sel.map((e) => entityPath(scene, e.sceneId)).join(', ');
+        const only = moveOnly();
+        for (const b of ui.tools.querySelectorAll('[data-tool="rotate"], [data-tool="scale"]')) {
+            b.dataset.label ??= b.ariaLabel;
+            b.disabled = only;
+            b.ariaLabel = only
+                ? 'Only Move: a parent is stretched unevenly, so rotating or scaling this part would skew it'
+                : b.dataset.label;
+        }
+        if (only && tool !== 'translate') setTool('translate');
+        attach();
+        paint();
+    };
+
+    const commit = async (changes) => {
+        for (const c of changes) place(nodes.get(c.id), c.to);
+        let writes = editWrites(changes, scene, existing, key);
+        if (!writes.length) return;
+        const ids = changes.map((c) => c.id);
+        for (const id of ids) pending.set(id, (pending.get(id) ?? 0) + 1);
+        say('Saving…');
+        let [e] = await settle(db.batch(writes));
+        if (e) {
+            // refresh the version pins of every written doc, then retry once
+            const [re, r] = await settle(col.get());
+            if (!re) existing = new Set(r.docs.map((d) => entityOf(key, d.id)).filter(Boolean));
+            await repin(ids);
+            writes = editWrites(changes, scene, existing, key);
+            [e] = re ? [re] : writes.length ? await settle(db.batch(writes)) : [null];
+        }
+        for (const id of ids) pending.set(id, pending.get(id) - 1);
+        if (e) {
+            console.error(`scene edits (${key}) not saved: ${e.message}`);
+            return say(`Not saved — ${e.message}`);
+        }
+        for (const w of writes) {
+            const id = entityOf(key, w.path.slice(EDITS.length + 1));
+            if (w.op === 'delete') existing.delete(id);
+            else existing.add(id);
+        }
+        say('Saved', 1500);
+    };
+
+    // freeze the camera during a handle drag instead of disabling it: re-enabling discards input
+    // deltas, which leaves its shift state unbalanced (shift-to-snap then turns every orbit into a pan)
+    let frozen = null;
+    const freeze = (on) => {
+        if (on && !frozen) {
+            frozen = { rotateSpeed: cc.rotateSpeed, zoomSpeed: cc.zoomSpeed, enablePan: cc.enablePan };
+            Object.assign(cc, { rotateSpeed: 0, zoomSpeed: 0, enablePan: false });
+        } else if (!on && frozen) {
+            Object.assign(cc, frozen);
+            frozen = null;
+        }
+    };
+
+    for (const [name, g] of Object.entries(gizmos)) {
+        g.coordSpace = space;
+        g.snapIncrement = SNAP[name];
+        g.enabled = false;
+        g.on('pointer:down', (_x, _y, mi) => {
+            if (name !== tool) return;
+            onHandle = !!mi;
+            if (onHandle) freeze(true);
+        });
+        g.on('pointer:up', () => {
+            if (name !== tool) return;
+            onHandle = false;
+            freeze(false);
+        });
+        g.on('transform:start', () => {
+            before = sel.map((e) => ({ id: e.sceneId, before: read(e) }));
+            dragging = new Set(before.map((b) => b.id));
+        });
+        g.on('transform:end', () => {
+            const op = (before ?? [])
+                .map((b) => ({ ...b, after: read(nodes.get(b.id)) }))
+                .filter((o) => !sameTransform(o.before, o.after));
+            before = null;
+            dragging = new Set();
+            if (!op.length) return;
+            history.push(op);
+            commit(op.map((o) => ({ id: o.id, to: o.after })));
+        });
+    }
+
+    const setSnap = () => {
+        for (const g of Object.values(gizmos)) g.snap = snapLatch || snapHeld;
+        ui.snap.setAttribute('aria-pressed', String(snapLatch));
+    };
+    const setTool = (t) => {
+        if (t !== 'translate' && moveOnly()) return;
+        tool = t;
+        for (const b of ui.tools.querySelectorAll('[data-tool]'))
+            b.setAttribute('aria-pressed', String(b.dataset.tool === t));
+        attach();
+    };
+    const setSpace = (s) => {
+        space = s;
+        for (const g of Object.values(gizmos)) g.coordSpace = s;
+        ui.space.ariaLabel = `${s === 'local' ? 'Local' : 'World'} axes (X)`;
+        ui.space.setAttribute('aria-pressed', String(s === 'local'));
+    };
+    const undoRedo = (redo) => {
+        const ch = redo ? history.redo() : history.undo();
+        if (ch) commit(ch);
+    };
+    const frame = () => {
+        const box = boundsOf(sel, new BoundingBox());
+        if (!box) return;
+        const c = box.center.clone();
+        cc.reset(c, c.clone().add(cam.forward.clone().mulScalar(-Math.max(box.halfExtents.length() * 3, 0.5))));
+    };
+
+    if (editable) {
+        ui.tools.hidden = false;
+        ui.tools.addEventListener('click', (e) => {
+            const b = e.target.closest('button');
+            if (!b) return;
+            if (b.dataset.tool) setTool(b.dataset.tool);
+            else if (b === ui.space) setSpace(space === 'world' ? 'local' : 'world');
+            else if (b === ui.snap) {
+                snapLatch = !snapLatch;
+                setSnap();
+            } else if (b === ui.undo || b === ui.redo) undoRedo(b === ui.redo);
+        });
+    }
+
+    // keys reach only the active scene: the one last pointed at
+    const keydown = (e) => {
+        const k = e.key.toLowerCase();
+        if ((e.metaKey || e.ctrlKey) && k === 'z') {
+            if (!editable) return;
+            e.preventDefault();
+            return undoRedo(e.shiftKey);
+        }
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        if (e.key === 'Shift') {
+            snapHeld = true;
+            return setSnap();
+        }
+        if (k === 'escape') {
+            // out of a drilled-in object first, back to the object itself
+            const s = scope;
+            scope = null;
+            select(s ? [s] : []);
+        } else if (k === 'f') frame();
+        else if (editable && TOOL_KEYS[k]) setTool(TOOL_KEYS[k]);
+        else if (editable && k === 'x') setSpace(space === 'world' ? 'local' : 'world');
+    };
+    const keyup = (e) => {
+        if (e.key !== 'Shift') return;
+        snapHeld = false;
+        setSnap();
+    };
+    const blur = () => {
+        snapHeld = false;
+        setSnap();
+    };
+    const ctl = { keydown, keyup, blur };
+
+    // pointer: gizmo listeners were added first, so onHandle is current in our pointerdown
+    let hoverAt = null;
+    let hoverRaf = 0;
+    // no hover outline while a comment box is open; the comment's own outline stays
+    document.addEventListener('agent:draft', (e) => {
+        drafting = !!e.detail?.open;
+        if (drafting) {
+            hov = null;
+            canvas.style.removeProperty('cursor');
+        }
+        paint();
+        if (!drafting && over && hoverAt) hoverRaf ||= requestAnimationFrame(hover);
+    });
+    document.addEventListener('agent:comment-mode', (e) => {
+        commenting = !!e.detail?.on;
+        attach();
+        paint();
+        if (over && hoverAt) hoverRaf ||= requestAnimationFrame(hover);
+    });
+    let down = null;
+    let lastPart = null;
+    let over = false;
+    let lastPose = NaN;
+    const hover = async () => {
+        hoverRaf = 0;
+        const { e: part, p } = await gpuPick(...hoverAt);
+        if (!over) return;
+        const e = level(part);
+        if (e !== hov) {
+            hov = e;
+            paint();
+        }
+        anchor(e, p);
+
+        // a hand only in comment mode, over what a comment would land on; it outranks the viewer's crosshair
+        if (commenting && !drafting && e) canvas.style.setProperty('cursor', 'pointer', 'important');
+        else canvas.style.removeProperty('cursor');
+    };
+    canvas.addEventListener('pointermove', (e) => {
+        if (e.pointerType !== 'mouse' || down) return;
+
+        // a press in comment mode is the viewer's click or area drag (it never reaches pointerdown), so hover steps aside
+        if (commenting && e.buttons) {
+            if (hov) {
+                hov = null;
+                paint();
+            }
+            return;
+        }
+        over = true;
+        hoverAt = [e.offsetX, e.offsetY];
+        hoverRaf ||= requestAnimationFrame(hover);
+    });
+
+    // a zoom, orbit or look moves the scene under a still cursor and its pins, so re-pick and re-pin when the
+    // camera moves or turns; on 'prerender', since the camera's view matrix only refreshes then, and pins placed
+    // earlier in the frame would project with the last frame's camera and trail the scene by a frame
+    app.on('prerender', () => {
+        const [c, r] = [cam.getPosition(), cam.getRotation()];
+        const pose = c.x + c.y * 7 + c.z * 13 + r.x * 17 + r.y * 19 + r.z * 23 + r.w * 29;
+        if (pose === lastPose) return;
+        lastPose = pose;
+        document.dispatchEvent(new Event('agent:layout'));
+        if (over && hoverAt && !down) hoverRaf ||= requestAnimationFrame(hover);
+    });
+    canvas.addEventListener('pointerenter', () => {
+        over = true;
+        activate(ctl);
+    });
+    canvas.addEventListener('pointerleave', () => {
+        over = false;
+        hov = null;
+        paint();
+        anchor(null, null);
+    });
+    canvas.addEventListener('pointerdown', (e) => {
+        activate(ctl);
+
+        // only the primary button selects; the others orbit, pan and fly
+        if (e.button !== 0) return;
+        down = { x: e.offsetX, y: e.offsetY, handle: onHandle, hit: null };
+        if (e.pointerType === 'mouse') return;
+        const h = cpuPick(e.offsetX, e.offsetY);
+        anchor(level(h.e), h.p);
+        down.hit = h.e;
+    });
+    // a click picks where it landed: the last hover pick can lag a quick move, and would select what was under it
+    canvas.addEventListener('pointerup', async (e) => {
+        const d = down;
+        down = null;
+        if (!d || d.handle || Math.hypot(e.offsetX - d.x, e.offsetY - d.y) > CLICK_SLOP) return;
+        lastPart = e.pointerType === 'mouse' ? (await gpuPick(e.offsetX, e.offsetY)).e : d.hit;
+        const h = level(lastPart);
+        if (!h || objectOf(h) !== scope) scope = null;
+        const toggled = h && (sel.includes(h) ? sel.filter((x) => x !== h) : [...sel, h]);
+        select(h ? (e.shiftKey ? toggled : [h]) : e.shiftKey ? sel : []);
+    });
+
+    // a double-click selects the part under the cursor and drills into its object, and the camera glides to put
+    // the point clicked at the centre of the view, where it then orbits (comment mode keeps the view still)
+    canvas.addEventListener('dblclick', async (e) => {
+        if (commenting || !lastPart) return;
+        scope = objectOf(lastPart);
+        select([lastPart]);
+        const { p } = await gpuPick(e.offsetX, e.offsetY);
+        if (p) cc.focus(new Vec3(...p));
+    });
+    return ctl;
+};
+
+// every <canvas data-scene> is an independent app; they share one engine module and one db handle
+const canvases = [...document.querySelectorAll('canvas[data-scene]')];
+const db = canvases.length ? ((await window.agent?.use('db')) ?? null) : null;
+const keys = new Set();
+const ctls = [];
+let active = null;
+for (const c of canvases) {
+    const k = c.dataset.scene;
+    if (!ID_RE.test(k) || keys.has(k)) {
+        console.error(`scene "${k}": data-scene must be unique and match ${ID_RE}`);
+        continue;
+    }
+    keys.add(k);
+    // the scene can ask before mount resolves (its app updates while it loads), so ctl starts null
+    let ctl = null;
+    ctl = await mount(
+        c,
+        db,
+        (x) => (active = x),
+        () => !!ctl && active === ctl
+    );
+    if (ctl) ctls.push(ctl);
+}
+active ??= ctls[0] ?? null;
+addEventListener('keydown', (e) => typing(e.target) || active?.keydown(e));
+addEventListener('keyup', (e) => active?.keyup(e));
+addEventListener('blur', () => {
+    ctls.forEach((c) => c.blur());
+    for (const code of FLY_CODES) dispatchEvent(new KeyboardEvent('keyup', { code }));
+});
+
+</script>

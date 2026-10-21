@@ -1,0 +1,5 @@
+{
+    "extends": "../plugins/playcanvas-stage/tsconfig.json",
+    "include": ["**/*.ts"],
+    "exclude": ["fixtures/**"]
+}

@@ -1,0 +1,38 @@
+{
+    "name": "stage",
+    "private": true,
+    "description": "PlayCanvas Stage: a local stage of PlayCanvas 3D scenes for coding agents",
+    "homepage": "https://github.com/playcanvas/stage#readme",
+    "bugs": {
+        "url": "https://github.com/playcanvas/stage/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/playcanvas/stage.git"
+    },
+    "license": "MIT",
+    "author": "PlayCanvas <support@playcanvas.com>",
+    "type": "module",
+    "scripts": {
+        "lint": "prettier --check . && eslint .",
+        "lint:fix": "prettier --write . && eslint --fix .",
+        "test": "node --test --test-concurrency=1 test/*.test.ts",
+        "typecheck": "tsc -p plugins/playcanvas-stage && tsc -p test"
+    },
+    "devDependencies": {
+        "@playcanvas/eslint-config": "3.0.0-beta.8",
+        "@types/express": "^5.0.6",
+        "@types/node": "^22.0.0",
+        "eslint": "9.39.5",
+        "express": "^5.2.1",
+        "globals": "17.12.0",
+        "http-server": "^14.1.1",
+        "playcanvas": "^2.23.0",
+        "prettier": "3.9.9",
+        "typescript": "^5.6.0",
+        "vite": "^8.3.2"
+    },
+    "engines": {
+        "node": ">=22.18.0"
+    }
+}

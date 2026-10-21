@@ -1,0 +1,98 @@
+name: Publish
+
+on:
+    workflow_dispatch:
+        inputs:
+            type:
+                description: Version increment
+                type: choice
+                options: [patch, minor, major]
+                default: patch
+
+concurrency: publish
+
+jobs:
+    publish:
+        name: Publish
+        runs-on: ubuntu-latest
+        if: ${{ github.repository_owner == 'playcanvas' && github.ref == 'refs/heads/main' }}
+        permissions:
+            contents: write
+        steps:
+            - name: Check out code
+              uses: actions/checkout@v7
+
+            # every manifest carries the version; bump them together so users never install a mismatched plugin
+            - name: Bump version
+              id: version
+              env:
+                  TYPE: ${{ inputs.type }}
+              run: |
+                  cur=$(jq -r .version plugins/playcanvas-stage/.claude-plugin/plugin.json)
+                  IFS=. read -r major minor patch <<< "$cur"
+                  case "$TYPE" in
+                      major) next="$((major + 1)).0.0" ;;
+                      minor) next="$major.$((minor + 1)).0" ;;
+                      patch) next="$major.$minor.$((patch + 1))" ;;
+                  esac
+                  if git ls-remote --exit-code --tags origin "refs/tags/v$next" > /dev/null; then
+                      echo "::error::tag v$next already exists"; exit 1
+                  fi
+                  plugins=(plugins/playcanvas-stage/.claude-plugin/plugin.json plugins/playcanvas-stage/.codex-plugin/plugin.json)
+                  markets=(.claude-plugin/marketplace.json .agents/plugins/marketplace.json)
+                  sed -i "s/\"version\": \"$cur\"/\"version\": \"$next\"/" "${plugins[@]}" "${markets[@]}"
+                  for f in "${plugins[@]}"; do
+                      got=$(jq -r .version "$f")
+                      [ "$got" = "$next" ] || { echo "::error file=$f::version $got, want $next"; exit 1; }
+                  done
+                  for f in "${markets[@]}"; do
+                      got=$(jq -r '.plugins[] | select(.name == "playcanvas-stage") | .version' "$f")
+                      [ "$got" = "$next" ] || { echo "::error file=$f::version $got, want $next"; exit 1; }
+                  done
+                  got=$(jq -r .metadata.version .claude-plugin/marketplace.json)
+                  [ "$got" = "$next" ] || { echo "::error file=.claude-plugin/marketplace.json::metadata version $got, want $next"; exit 1; }
+                  echo "tag=v$next" >> "$GITHUB_OUTPUT"
+
+            # atomic so main and the tag land together or not at all
+            - name: Commit and tag
+              env:
+                  TAG: ${{ steps.version.outputs.tag }}
+              run: |
+                  git config user.name 'github-actions[bot]'
+                  git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+                  git commit -am "chore: release $TAG"
+                  git tag -a "$TAG" -m "$TAG"
+                  git push --atomic origin HEAD:refs/heads/main "$TAG"
+
+            # a fixed install header, then github's notes: the merged pull requests since the previous tag
+            - name: Create GitHub Release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  TAG: ${{ steps.version.outputs.tag }}
+              run: |
+                  pre=()
+                  if [[ "$TAG" == v0.* ]]; then
+                      pre=(--prerelease)
+                  fi
+                  gh release create "$TAG" --verify-tag --title "$TAG" "${pre[@]}" --generate-notes --notes "$(cat <<'EOF'
+                  An editor where you and your coding agent work on PlayCanvas apps together: point at what you mean instead of describing it, move objects with gizmos, and the agent writes your edits into the source.
+
+                  ## Install
+
+                  Claude Code:
+
+                  ```
+                  claude plugin marketplace add playcanvas/stage
+                  claude plugin install playcanvas-stage@stage
+                  ```
+
+                  Codex:
+
+                  ```
+                  codex plugin marketplace add playcanvas/stage
+                  codex plugin add playcanvas-stage@stage
+                  ```
+
+                  Requires Node.js 22.18 or newer. See the [README](https://github.com/playcanvas/stage#install).
+                  EOF
+                  )"

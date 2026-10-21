@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Script game</title>
+        <style>
+            body { margin: 0; overflow: hidden; }
+        </style>
+        <script src="/playcanvas.js"></script>
+    </head>
+    <body>
+        <canvas id="c"></canvas>
+        <script type="module">
+            import { build } from './scene.mjs';
+
+            build(window.pc, document.getElementById('c'));
+        </script>
+    </body>
+</html>

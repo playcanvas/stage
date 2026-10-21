@@ -1,0 +1,30 @@
+{
+    "name": "playcanvas-stage",
+    "version": "0.0.0",
+    "description": "An editor for working on PlayCanvas scenes and apps with your coding agent: point at entities and camera angles instead of describing them, move them with gizmos, and the agent folds your edits and comments back in - nothing leaves the machine",
+    "author": {
+        "name": "PlayCanvas",
+        "url": "https://playcanvas.com"
+    },
+    "homepage": "https://github.com/playcanvas/stage",
+    "repository": "https://github.com/playcanvas/stage",
+    "license": "MIT",
+    "keywords": ["playcanvas", "editor", "mcp", "3d", "game-engine"],
+    "skills": "./skills/",
+    "mcpServers": "./codex.mcp.json",
+    "interface": {
+        "displayName": "PlayCanvas Stage",
+        "shortDescription": "Point at PlayCanvas scenes",
+        "longDescription": "An editor for working on PlayCanvas apps with your coding agent. Stage attaches to your app's own running dev server and shows it in a viewer on localhost, where you play and pause it, click an entity or drag across an area to comment on it, and move, rotate or scale objects with gizmos. The agent gets each entity's path, the 3D point and a capture of what you saw, and writes your edits into the app's source. Nothing is uploaded anywhere.",
+        "developerName": "PlayCanvas",
+        "category": "Developer Tools",
+        "capabilities": ["skills", "mcp"],
+        "defaultPrompt": "Block out a 3D scene of my desk at real scale.",
+        "websiteURL": "https://playcanvas.com",
+        "supportURL": "https://github.com/playcanvas/stage/issues",
+        "privacyPolicyURL": "https://playcanvas.com/privacy",
+        "termsOfServiceURL": "https://playcanvas.com/terms",
+        "logo": "./assets/logo.png",
+        "composerIcon": "./assets/logo.png"
+    }
+}

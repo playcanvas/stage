@@ -1,0 +1,23 @@
+{
+    "name": "playcanvas-stage-plugin",
+    "private": true,
+    "description": "zero runtime dependencies; node runs the .ts sources directly",
+    "homepage": "https://github.com/playcanvas/stage#readme",
+    "bugs": {
+        "url": "https://github.com/playcanvas/stage/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/playcanvas/stage.git",
+        "directory": "plugins/playcanvas-stage"
+    },
+    "license": "MIT",
+    "author": "PlayCanvas <support@playcanvas.com>",
+    "type": "module",
+    "scripts": {
+        "daemon": "node server/daemon.ts"
+    },
+    "engines": {
+        "node": ">=22.18"
+    }
+}

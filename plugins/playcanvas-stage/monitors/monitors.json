@@ -1,0 +1,14 @@
+[
+    {
+        "name": "stage-comments",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/watch-comments.ts\"",
+        "description": "stage comments sent to the agent",
+        "when": "on-skill-invoke:stage-design"
+    },
+    {
+        "name": "stage-comments-plugin",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/watch-comments.ts\"",
+        "description": "stage comments sent to the agent",
+        "when": "on-skill-invoke:playcanvas-stage:stage-design"
+    }
+]
