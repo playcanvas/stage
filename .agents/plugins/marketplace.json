@@ -7,7 +7,7 @@
         {
             "name": "playcanvas-stage",
             "description": "An editor for working on PlayCanvas scenes and apps with your coding agent: point at entities and camera angles instead of describing them, move them with gizmos, and the agent folds your edits and comments back in - nothing leaves the machine",
-            "version": "0.0.0",
+            "version": "0.1.0",
             "source": {
                 "source": "local",
                 "path": "./plugins/playcanvas-stage"
